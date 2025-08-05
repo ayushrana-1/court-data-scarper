@@ -1,1 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Delhi High Court Case Scraper</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+
+    <!-- Header -->
+    <header class="header">
+        <h1>🔍 Delhi High Court Case Scraper</h1>
+        <p>Extract case information from Delhi High Court website</p>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container">
+
+        <!-- Left - Case Information Form -->
+        <div class="form-section">
+            <h2>Case Information</h2>
+            <form id="scrapeForm" action="/scrape" method="post">
+
+                <label>Case Type</label>
+                <select name="case_type" required>
+                    <option value="">Select Case Type</option>
+                    <option value="CRL.A.">CRL.A. (Criminal Appeal)</option>
+                    <option value="WP(C)">WP(C) (Writ Petition Civil)</option>
+                    <option value="CRL.REV.">CRL.REV. (Criminal Revision)</option>
+                    <option value="CRL.M.C.">CRL.M.C. (Criminal Misc)</option>
+                    <option value="CS(OS)">CS(OS) (Civil Suit Original Side)</option>
+                    <option value="FAO">FAO (First Appeal from Order)</option>
+                </select>
+
+                <label>Case Number</label>
+                <input type="text" name="case_number" placeholder="e.g., 1207" required>
+
+                <label>Filing Year</label>
+                <input type="text" name="case_year" placeholder="e.g., 2019" required>
+
+                <button type="submit" class="btn-primary" id="submitBtn">
+                    <span id="btnText">🔍 Get Case Information</span>
+                    <span id="btnLoader" style="display: none;">⏳ Scraping...</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- Right - Results -->
+        <div class="status-section">
+            <h2 id="resultTitle">About This Tool</h2>
+            <div id="info">
+                <p>📋 This tool scrapes case information from the Delhi High Court website including:</p>
+                <ul style="margin: 1rem 0; padding-left: 2rem;">
+                    <li>Case status (Disposed/Pending)</li>
+                    <li>Petitioner vs Respondent details</li>
+                    <li>Next hearing date</li>
+                    <li>Last hearing date</li>
+                    <li>Court number</li>
+                </ul>
+                <p>⚡ Simply select the case type, enter the case number and year, then click "Get Case Information" to fetch the latest details.</p>
+            </div>
+            
+            <!-- Results Container (initially hidden) -->
+            <div id="results" style="display: none;">
+                <!-- Success Results -->
+                <div id="successResults" style="display: none;">
+                    <div class="case-info-card">
+                        <div class="case-header-inline">
+                            <h3 id="caseIdentifier"></h3>
+                            <span id="caseStatus" class="status-badge"></span>
+                        </div>
+                        
+                        <div class="case-details-inline">
+                            <div class="detail-item">
+                                <span class="detail-label">⚖️ Parties:</span>
+                                <span id="caseParties" class="detail-value"></span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">📅 Next Hearing:</span>
+                                <span id="nextHearing" class="detail-value"></span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">📆 Last Hearing:</span>
+                                <span id="lastHearing" class="detail-value"></span>
+                            </div>
+                            
+                            <div class="detail-item">
+                                <span class="detail-label">🏛️ Court No:</span>
+                                <span id="courtNo" class="detail-value"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- PDF Button -->
+                        <div class="pdf-actions">
+                            <button id="viewPdfBtn" class="btn-pdf" onclick="viewPDF()">
+                                <span id="pdfBtnText">📄 View PDF</span>
+                                <span id="pdfBtnLoader" style="display: none;">⏳ Getting PDF...</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Error Results -->
+                <div id="errorResults" style="display: none;">
+                    <div class="error-message">
+                        <div class="error-icon">❌</div>
+                        <p id="errorText"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+
+<script>
+// Global variable to store current case data
+let currentCaseData = null;
+
+document.getElementById('scrapeForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    const formData = new FormData(this);
+    const submitBtn = document.getElementById('submitBtn');
+    const btnText = document.getElementById('btnText');
+    const btnLoader = document.getElementById('btnLoader');
+    const resultTitle = document.getElementById('resultTitle');
+    const info = document.getElementById('info');
+    const results = document.getElementById('results');
+    const successResults = document.getElementById('successResults');
+    const errorResults = document.getElementById('errorResults');
+    
+    // Show loading state
+    submitBtn.disabled = true;
+    btnText.style.display = 'none';
+    btnLoader.style.display = 'inline';
+    
+    // Hide info and show loading in results area
+    info.style.display = 'none';
+    results.style.display = 'block';
+    successResults.style.display = 'none';
+    errorResults.style.display = 'none';
+    resultTitle.textContent = 'Scraping Case Information...';
+    
+    fetch('/scrape', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Store case data globally for PDF function (including PDF link)
+            currentCaseData = {
+                case_type: formData.get('case_type'),
+                case_number: formData.get('case_number'),
+                case_year: formData.get('case_year'),
+                pdf_link: data.case_info.pdf_link
+            };
+            
+            // Show success results with cache indicator
+            const cacheIndicator = data.from_cache ? ' (From Cache ⚡)' : ' (Fresh Data 🔄)';
+            resultTitle.textContent = 'Case Information' + cacheIndicator;
+            document.getElementById('caseIdentifier').textContent = data.case_info.case_identifier || 'N/A';
+            document.getElementById('caseStatus').textContent = data.case_info.status || 'Unknown';
+            document.getElementById('caseStatus').className = `status-badge status-${(data.case_info.status || 'unknown').toLowerCase().replace(' ', '-')}`;
+            document.getElementById('caseParties').textContent = data.case_info.parties || 'Not Available';
+            document.getElementById('nextHearing').textContent = data.case_info.next_hearing_date || 'Not Scheduled';
+            document.getElementById('lastHearing').textContent = data.case_info.last_hearing_date || 'Not Available';
+            document.getElementById('courtNo').textContent = data.case_info.court_no || 'Not Specified';
+            
+            successResults.style.display = 'block';
+            errorResults.style.display = 'none';
+        } else {
+            // Show error results
+            resultTitle.textContent = 'Error';
+            document.getElementById('errorText').textContent = data.error;
+            successResults.style.display = 'none';
+            errorResults.style.display = 'block';
+        }
+    })
+    .catch(error => {
+        // Show error results
+        resultTitle.textContent = 'Error';
+        document.getElementById('errorText').textContent = 'An unexpected error occurred. Please try again.';
+        successResults.style.display = 'none';
+        errorResults.style.display = 'block';
+    })
+    .finally(() => {
+        // Reset button state
+        submitBtn.disabled = false;
+        btnText.style.display = 'inline';
+        btnLoader.style.display = 'none';
+    });
+});
+
+// Function to view PDF
+function viewPDF() {
+    if (!currentCaseData) {
+        alert('Please scrape case information first.');
+        return;
+    }
+    
+    // If PDF link is already available, open directly
+    if (currentCaseData.pdf_link) {
+        console.log('Opening PDF URL directly:', currentCaseData.pdf_link);
+        window.open(currentCaseData.pdf_link, '_blank');
+        return;
+    }
+    
+    // If no PDF link, show loading and fetch from server
+    const pdfBtn = document.getElementById('viewPdfBtn');
+    const pdfBtnText = document.getElementById('pdfBtnText');
+    const pdfBtnLoader = document.getElementById('pdfBtnLoader');
+    
+    // Show loading state
+    pdfBtn.disabled = true;
+    pdfBtnText.style.display = 'none';
+    pdfBtnLoader.style.display = 'inline';
+    
+    const formData = new FormData();
+    formData.append('case_type', currentCaseData.case_type);
+    formData.append('case_number', currentCaseData.case_number);
+    formData.append('case_year', currentCaseData.case_year);
+    
+    fetch('/get_pdf_url', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log('Opening PDF URL:', data.pdf_url);
+            // Store PDF link for future use
+            currentCaseData.pdf_link = data.pdf_url;
+            // Open PDF in new tab
+            window.open(data.pdf_url, '_blank');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('An error occurred while getting PDF. Please try again.');
+    })
+    .finally(() => {
+        // Reset button state
+        pdfBtn.disabled = false;
+        pdfBtnText.style.display = 'inline';
+        pdfBtnLoader.style.display = 'none';
+    });
+}
+
+// Reset button to show info again
+function showInfo() {
+    document.getElementById('resultTitle').textContent = 'About This Tool';
+    document.getElementById('info').style.display = 'block';
+    document.getElementById('results').style.display = 'none';
+    currentCaseData = null;
+}
+</script>
+
+</html>
 
