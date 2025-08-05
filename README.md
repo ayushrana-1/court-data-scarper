@@ -36,7 +36,7 @@ p1/
 
 1. **Clone or download the project**
    ```bash
-   cd p1
+   cd court-data-scarper
    ```
 
 2. **Create a virtual environment** (recommended)
