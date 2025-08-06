@@ -2,6 +2,8 @@
 
 A Flask web application that scrapes case information from the Delhi High Court website. This tool allows users to search for court cases and retrieve detailed information including case status, parties involved, hearing dates, and PDF documents.
 
+**Demo Video**: https://youtu.be/_wTNQZhE2z0
+
 ## Features
 
 - 🔍 **Case Search**: Search for cases by type, number, and year
